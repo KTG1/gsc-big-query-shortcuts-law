@@ -16,6 +16,22 @@ const PAGE_SCOPES = [
   { id: "insights", label: "Insights", summary: "Only URLs inside /blog or /insights", pattern: "/(?:blog|insights)" },
 ];
 
+const FILTER_PRESETS = {
+  page: [
+    { id: "homepage", label: "Homepage", mode: "regex", value: "^https?://[^/]+/?(?:[?#].*)?$" },
+    { id: "parameters", label: "Has parameters", mode: "regex", value: "[?&][^=]+=" },
+    { id: "deep", label: "Deep paths", mode: "regex", value: "^https?://[^/]+/(?:[^/?#]+/){2,}[^/?#]*/?$" },
+    { id: "pdf", label: "PDF files", mode: "regex", value: "\\.pdf(?:[?#]|$)" },
+  ],
+  query: [
+    { id: "questions", label: "Questions", mode: "regex", value: "^(who|what|when|where|why|how|can|could|should|is|are|do|does)\\b" },
+    { id: "local", label: "Local intent", mode: "regex", value: "\\b(near me|nearby|in my area)\\b" },
+    { id: "cost", label: "Costs & fees", mode: "regex", value: "\\b(cost|costs|fee|fees|price|pricing|how much)\\b" },
+    { id: "lawyer", label: "Lawyer intent", mode: "regex", value: "\\b(lawyer|attorney|law firm|legal counsel)\\b" },
+    { id: "long-tail", label: "Long-tail 5+", mode: "regex", value: "^\\S+(?:\\s+\\S+){4,}$" },
+  ],
+};
+
 const $ = (selector) => document.querySelector(selector);
 const elements = {
   configForm: $("#configForm"), clientId: $("#clientId"), projectId: $("#projectId"), location: $("#location"),
@@ -25,6 +41,7 @@ const elements = {
   pageScopeTabs: $("#pageScopeTabs"), pageScopeSummary: $("#pageScopeSummary"),
   dataFilters: $("#dataFilters"), pageFilter: $("#pageFilter"), pageFilterMode: $("#pageFilterMode"),
   queryFilter: $("#queryFilter"), queryFilterMode: $("#queryFilterMode"), filterSummary: $("#filterSummary"), activeFilterCount: $("#activeFilterCount"),
+  pageQuickFilters: $("#pageQuickFilters"), queryQuickFilters: $("#queryQuickFilters"),
   resultStatus: $("#resultStatus"), resultTitle: $("#resultTitle"), queryDetail: $("#queryDetail"),
   copySqlButton: $("#copySqlButton"), dryRunButton: $("#dryRunButton"), runQueryButton: $("#runQueryButton"),
   downloadFullButton: $("#downloadFullButton"),
@@ -137,6 +154,39 @@ function renderFilterSummary() {
   const active = Object.values(filters).filter((filter) => filter.value).length;
   elements.activeFilterCount.textContent = `${active} active`;
   elements.filterSummary.textContent = active ? [filters.page.value && "page URL", filters.query.value && "search query"].filter(Boolean).join(" + ") : "Optional URL and search-query filters";
+  renderQuickFilters();
+}
+
+function renderQuickFilters() {
+  const filters = getFilters();
+  Object.entries(FILTER_PRESETS).forEach(([target, presets]) => {
+    const container = elements[`${target}QuickFilters`];
+    const current = filters[target];
+    container.innerHTML = presets.map((preset) => `
+      <button class="quick-filter${current.mode === preset.mode && current.value === preset.value ? " active" : ""}" type="button" data-filter-target="${target}" data-filter-preset="${preset.id}">${preset.label}</button>`).join("")
+      + (current.value ? `<button class="quick-filter clear" type="button" data-filter-target="${target}" data-filter-clear>Clear</button>` : "");
+  });
+}
+
+function applyQuickFilter(target, presetId) {
+  const preset = FILTER_PRESETS[target].find((item) => item.id === presetId);
+  if (!preset) return;
+  elements[`${target}FilterMode`].value = preset.mode;
+  elements[`${target}Filter`].value = preset.value;
+  handleFilterChange();
+}
+
+function clearFilter(target) {
+  elements[`${target}Filter`].value = "";
+  handleFilterChange();
+}
+
+function handleFilterChange() {
+  saveConfig();
+  state.rows = [];
+  elements.downloadFullButton.disabled = true;
+  renderFilterSummary();
+  if (state.selected) renderSelectedQuery(false);
 }
 
 async function collectQueryPages(payload, config, onProgress) {
@@ -382,12 +432,12 @@ elements.pageScopeTabs.addEventListener("click", (event) => {
 });
 elements.queryGrid.addEventListener("click", (event) => { const card = event.target.closest("[data-id]"); if (card) selectQuery(card.dataset.id); });
 elements.querySearch.addEventListener("input", renderQueries);
-[elements.pageFilter, elements.pageFilterMode, elements.queryFilter, elements.queryFilterMode].forEach((element) => element.addEventListener("input", () => {
-  saveConfig();
-  state.rows = [];
-  elements.downloadFullButton.disabled = true;
-  renderFilterSummary();
-  if (state.selected) renderSelectedQuery(false);
+[elements.pageFilter, elements.pageFilterMode, elements.queryFilter, elements.queryFilterMode].forEach((element) => element.addEventListener("input", handleFilterChange));
+[elements.pageQuickFilters, elements.queryQuickFilters].forEach((container) => container.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-filter-target]");
+  if (!button) return;
+  if (button.hasAttribute("data-filter-clear")) clearFilter(button.dataset.filterTarget);
+  else applyQuickFilter(button.dataset.filterTarget, button.dataset.filterPreset);
 }));
 elements.copySqlButton.addEventListener("click", async () => { try { await navigator.clipboard.writeText(getPortableSql(state.selected)); renderSelectedQuery(false); showToast("SQL copied."); } catch (error) { showToast(error.message, true); } });
 elements.dryRunButton.addEventListener("click", dryRun);

@@ -115,6 +115,14 @@ code { font: 400 11px var(--mono); background: var(--sky); padding: 2px 4px; }
 .filter-controls { display: flex; }
 .filter-controls select { border-right: 0; }
 .filter-controls input { flex: 1; }
+.quick-filters { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 2px; }
+.quick-filter { padding: 6px 8px; border: 1px solid var(--line); background: #f8faf9; color: var(--muted); font: 500 8px var(--mono); letter-spacing: .035em; text-transform: uppercase; }
+.quick-filter::before { content: "+ "; color: var(--blue); }
+.quick-filter:hover { border-color: var(--blue); color: var(--ink); }
+.quick-filter.active { border-color: var(--blue); background: var(--blue); color: var(--white); }
+.quick-filter.active::before { content: "✓ "; color: #c8e8f3; }
+.quick-filter.clear { background: transparent; border-color: transparent; color: var(--orange); }
+.quick-filter.clear::before { content: "× "; color: inherit; }
 .word-scope { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 13px 16px; border: 1px solid var(--line); border-top: 0; background: var(--white); }
 .word-scope[hidden] { display: none; }
 .word-scope .eyebrow { margin: 0 0 4px; font-size: 9px; }

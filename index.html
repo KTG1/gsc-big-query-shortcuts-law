@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=filters-v1" />
+    <link rel="stylesheet" href="styles.css?v=quick-filters-v1" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -124,6 +124,7 @@
                   <input id="pageFilter" type="text" placeholder="e.g. /services/divorce" spellcheck="false" />
                 </div>
                 <small>Applied after the selected page-group preset.</small>
+                <div class="quick-filters" id="pageQuickFilters" aria-label="Quick page URL filters"></div>
               </div>
               <div class="filter-rule">
                 <label for="queryFilter">Search query</label>
@@ -136,6 +137,7 @@
                   <input id="queryFilter" type="text" placeholder="e.g. lawyer near me" spellcheck="false" />
                 </div>
                 <small>Only applies to the performance table; matching is case-insensitive.</small>
+                <div class="quick-filters" id="queryQuickFilters" aria-label="Quick search-query filters"></div>
               </div>
             </div>
           </details>
@@ -173,6 +175,6 @@
 
     <div class="toast" id="toast" role="status"></div>
     <script src="queries.js?v=61cd5ce"></script>
-    <script src="app.js?v=filters-v1"></script>
+    <script src="app.js?v=quick-filters-v1"></script>
   </body>
 </html>

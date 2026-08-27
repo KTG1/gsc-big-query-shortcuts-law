@@ -8,6 +8,7 @@ A browser-based dashboard for legal SEO teams running reusable analyses against 
 - Browser-only Google OAuth using Google Identity Services
 - Configurable GCP project, dataset, table, and BigQuery location
 - Stackable page-group presets plus custom page-URL and search-query filters
+- One-click filters for common URL shapes and legal search intents
 - Query cost estimates through BigQuery dry runs
 - Results rendered in a sortable-friendly table and downloadable as CSV
 - No backend and no stored client secret
