@@ -23,6 +23,8 @@ const elements = {
   connectButton: $("#connectButton"), disconnectButton: $("#disconnectButton"), connectionChip: $("#connectionChip"),
   querySearch: $("#querySearch"), categoryTabs: $("#categoryTabs"), queryGrid: $("#queryGrid"),
   pageScopeTabs: $("#pageScopeTabs"), pageScopeSummary: $("#pageScopeSummary"),
+  dataFilters: $("#dataFilters"), pageFilter: $("#pageFilter"), pageFilterMode: $("#pageFilterMode"),
+  queryFilter: $("#queryFilter"), queryFilterMode: $("#queryFilterMode"), filterSummary: $("#filterSummary"), activeFilterCount: $("#activeFilterCount"),
   resultStatus: $("#resultStatus"), resultTitle: $("#resultTitle"), queryDetail: $("#queryDetail"),
   copySqlButton: $("#copySqlButton"), dryRunButton: $("#dryRunButton"), runQueryButton: $("#runQueryButton"),
   downloadFullButton: $("#downloadFullButton"),
@@ -33,7 +35,7 @@ const STORAGE_KEY = "gsc-bq-shortcuts-config-v1";
 const RENDER_ROW_LIMIT = 1000;
 const AUTO_DOWNLOAD_ROW_LIMIT = 5000;
 const QUERY_PAGE_SIZE = 10000;
-const configFields = ["clientId", "projectId", "location", "dataset", "tableName", "inspectionTable"];
+const configFields = ["clientId", "projectId", "location", "dataset", "tableName", "inspectionTable", "pageFilter", "pageFilterMode", "queryFilter", "queryFilterMode"];
 
 function loadConfig() {
   try {
@@ -69,18 +71,73 @@ function hydrateSql(query) {
   const table = `${config.projectId}.${config.dataset}.${config.tableName}`;
   const inspection = `${config.projectId}.${config.dataset}.${config.inspectionTable || "url_inspection"}`;
   const scope = PAGE_SCOPES.find((item) => item.id === state.pageScope) || PAGE_SCOPES[0];
-  const scopedSource = (source) => {
-    if (!scope.pattern) return `\`${source}\``;
-    return `(SELECT * FROM \`${source}\` WHERE REGEXP_CONTAINS(url, r'^https?://[^/]+${scope.pattern}(?:/|$)'))`;
+  const filters = getFilters();
+  const scopedSource = (source, queryAware = false) => {
+    const predicates = [];
+    if (scope.pattern) predicates.push(`REGEXP_CONTAINS(url, r'^https?://[^/]+${scope.pattern}(?:/|$)')`);
+    if (filters.page.value) predicates.push(filterPredicate("url", "page_filter", filters.page.mode));
+    if (queryAware && filters.query.value) predicates.push(filterPredicate("query", "query_filter", filters.query.mode));
+    if (!predicates.length) return `\`${source}\``;
+    return `(SELECT * FROM \`${source}\` WHERE ${predicates.join(" AND ")})`;
   };
   return query.sql
-    .replaceAll("`{{TABLE}}`", scopedSource(table))
+    .replaceAll("`{{TABLE}}`", scopedSource(table, true))
     .replaceAll("`{{INSPECTION_TABLE}}`", scopedSource(inspection))
     .replaceAll("{{TABLE}}", table)
     .replaceAll("{{INSPECTION_TABLE}}", inspection);
 }
 
-function getQueryParameters() { return {}; }
+function getFilters() {
+  return {
+    page: { value: elements.pageFilter.value.trim(), mode: elements.pageFilterMode.value },
+    query: { value: elements.queryFilter.value.trim(), mode: elements.queryFilterMode.value },
+  };
+}
+
+function filterPredicate(column, parameter, mode) {
+  if (mode === "regex") return `REGEXP_CONTAINS(${column}, CONCAT('(?i)', @${parameter}))`;
+  const contains = `STRPOS(LOWER(${column}), LOWER(@${parameter})) > 0`;
+  return mode === "excludes" ? `NOT (${contains})` : contains;
+}
+
+function validateFilters() {
+  const filters = getFilters();
+  Object.entries(filters).forEach(([name, filter]) => {
+    if (filter.value && filter.mode === "regex") {
+      try { new RegExp(filter.value); } catch { throw new Error(`The ${name} filter is not a valid regular expression.`); }
+    }
+  });
+  return filters;
+}
+
+function getQueryParameters() {
+  const filters = validateFilters();
+  const queryParameters = Object.entries(filters)
+    .filter(([, filter]) => filter.value)
+    .map(([name, filter]) => ({ name: `${name}_filter`, parameterType: { type: "STRING" }, parameterValue: { value: filter.value } }));
+  return queryParameters.length ? { parameterMode: "NAMED", queryParameters } : {};
+}
+
+function getPortableSql(query) {
+  const filters = validateFilters();
+  let sql = hydrateSql(query);
+  const declarations = [];
+  Object.entries(filters).forEach(([name, filter]) => {
+    if (!filter.value) return;
+    const parameter = `${name}_filter`;
+    const value = filter.value.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    declarations.push(`DECLARE ${parameter} STRING DEFAULT '${value}';`);
+    sql = sql.replaceAll(`@${parameter}`, parameter);
+  });
+  return declarations.length ? `${declarations.join("\n")}\n\n${sql}` : sql;
+}
+
+function renderFilterSummary() {
+  const filters = getFilters();
+  const active = Object.values(filters).filter((filter) => filter.value).length;
+  elements.activeFilterCount.textContent = `${active} active`;
+  elements.filterSummary.textContent = active ? [filters.page.value && "page URL", filters.query.value && "search query"].filter(Boolean).join(" + ") : "Optional URL and search-query filters";
+}
 
 async function collectQueryPages(payload, config, onProgress) {
   const rows = [...(payload.rows || [])];
@@ -189,7 +246,7 @@ function renderSelectedQuery(scroll = true) {
   const scope = PAGE_SCOPES.find((item) => item.id === state.pageScope) || PAGE_SCOPES[0];
   elements.resultStatus.textContent = `${state.selected.category} · ${scope.label}`;
   let sql = "";
-  try { sql = hydrateSql(state.selected); } catch (error) { sql = `-- ${error.message}\n-- Connect Google, then use Copy SQL, Estimate cost, or Run query to prepare this filter.`; }
+  try { sql = getPortableSql(state.selected); } catch (error) { sql = `-- ${error.message}\n-- Correct the filter before estimating or running this query.`; }
   elements.queryDetail.innerHTML = `
     <p>${state.selected.summary}</p>
     ${state.selected.requiresInspectionTable ? '<p><strong>Requires:</strong> a populated URL Inspection table.</p>' : ""}
@@ -325,9 +382,16 @@ elements.pageScopeTabs.addEventListener("click", (event) => {
 });
 elements.queryGrid.addEventListener("click", (event) => { const card = event.target.closest("[data-id]"); if (card) selectQuery(card.dataset.id); });
 elements.querySearch.addEventListener("input", renderQueries);
-elements.copySqlButton.addEventListener("click", async () => { try { await navigator.clipboard.writeText(hydrateSql(state.selected)); renderSelectedQuery(false); showToast("SQL copied."); } catch (error) { showToast(error.message, true); } });
+[elements.pageFilter, elements.pageFilterMode, elements.queryFilter, elements.queryFilterMode].forEach((element) => element.addEventListener("input", () => {
+  saveConfig();
+  state.rows = [];
+  elements.downloadFullButton.disabled = true;
+  renderFilterSummary();
+  if (state.selected) renderSelectedQuery(false);
+}));
+elements.copySqlButton.addEventListener("click", async () => { try { await navigator.clipboard.writeText(getPortableSql(state.selected)); renderSelectedQuery(false); showToast("SQL copied."); } catch (error) { showToast(error.message, true); } });
 elements.dryRunButton.addEventListener("click", dryRun);
 elements.runQueryButton.addEventListener("click", runQuery);
 elements.downloadFullButton.addEventListener("click", () => downloadCsv(false));
 
-loadConfig(); renderPageScopes(); renderCategories(); renderQueries(); setConnected(false);
+loadConfig(); renderPageScopes(); renderFilterSummary(); renderCategories(); renderQueries(); setConnected(false);

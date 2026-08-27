@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=61cd5ce" />
+    <link rel="stylesheet" href="styles.css?v=filters-v1" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -107,6 +107,38 @@
             </div>
             <div class="page-scope-tabs" id="pageScopeTabs" role="tablist" aria-label="Limit every query to a page group"></div>
           </div>
+          <details class="data-filters" id="dataFilters">
+            <summary>
+              <span><b>Refine data</b><small id="filterSummary">Optional URL and search-query filters</small></span>
+              <i id="activeFilterCount">0 active</i>
+            </summary>
+            <div class="filter-grid">
+              <div class="filter-rule">
+                <label for="pageFilter">Page URL</label>
+                <div class="filter-controls">
+                  <select id="pageFilterMode" aria-label="Page URL matching rule">
+                    <option value="contains">contains</option>
+                    <option value="excludes">does not contain</option>
+                    <option value="regex">matches regex</option>
+                  </select>
+                  <input id="pageFilter" type="text" placeholder="e.g. /services/divorce" spellcheck="false" />
+                </div>
+                <small>Applied after the selected page-group preset.</small>
+              </div>
+              <div class="filter-rule">
+                <label for="queryFilter">Search query</label>
+                <div class="filter-controls">
+                  <select id="queryFilterMode" aria-label="Search query matching rule">
+                    <option value="contains">contains</option>
+                    <option value="excludes">does not contain</option>
+                    <option value="regex">matches regex</option>
+                  </select>
+                  <input id="queryFilter" type="text" placeholder="e.g. lawyer near me" spellcheck="false" />
+                </div>
+                <small>Only applies to the performance table; matching is case-insensitive.</small>
+              </div>
+            </div>
+          </details>
           <div class="category-tabs" id="categoryTabs" role="tablist" aria-label="Query categories"></div>
           <div class="query-grid" id="queryGrid"></div>
         </section>
@@ -141,6 +173,6 @@
 
     <div class="toast" id="toast" role="status"></div>
     <script src="queries.js?v=61cd5ce"></script>
-    <script src="app.js?v=61cd5ce"></script>
+    <script src="app.js?v=filters-v1"></script>
   </body>
 </html>
